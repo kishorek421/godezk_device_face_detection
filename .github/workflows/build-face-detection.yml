@@ -1,5 +1,7 @@
 # Workflow to build and deploy the Face Detection Service
 # Triggers on push to main/dev/staging branches and manual dispatch
+# Builds the Docker image, pushes it to Docker Hub, and updates the devops repo
+# so ArgoCD can sync the new image tag to the target Kubernetes environment.
 name: Build and Deploy Face Detection Service
 
 on:
