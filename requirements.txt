@@ -1,0 +1,1 @@
+# Placeholder requirements — add face-detection dependencies here
