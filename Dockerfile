@@ -1,43 +1,42 @@
+# Use lightweight Python 3.10 base image for smaller final image size
 FROM python:3.10-slim
 
 WORKDIR /app
 
+# Install system dependencies required for OpenCV and YOLO-World
+# - git: for cloning CLIP repository
+# - libglib2.0-0, libsm6, libxext6, libxrender-dev: OpenCV GUI dependencies
+# - libgomp1: OpenMP support for parallel processing
+# - libgl1: OpenGL support for visualization
 RUN apt-get update && apt-get install -y \
-    libgl1 \
+    git \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+
+# Install Python dependencies from requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download InsightFace buffalo_l pack so the RetinaFace detector is
-# available if it is not already provided in models/ at build time.
-RUN python -c "
-from insightface.app import FaceAnalysis
-fa = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
-fa.prepare(ctx_id=-1, det_size=(640, 640))
-print('InsightFace buffalo_l cached')
-" || true
+# Install CLIP library required by YOLO-World for open-vocabulary detection
+# YOLO-World uses CLIP for text-image embeddings to detect custom classes
+RUN pip install --no-cache-dir git+https://github.com/ultralytics/CLIP.git
 
+# Copy source code into container
 COPY src/ ./src/
-COPY models/ ./models/
 
-# If the model was not supplied in models/, copy it from the cache
-RUN mkdir -p /app/models && \
-    if [ ! -f /app/models/det_10g.onnx ]; then \
-        cp /root/.insightface/models/buffalo_l/det_10g.onnx /app/models/det_10g.onnx; \
-    fi
+# Expose port 8011 for the FastAPI inference server
+EXPOSE 8011
 
-# Verify model is in place
-RUN ls -lah /app/models
-
-EXPOSE 8008
-
+# Health check to ensure the service is responsive
+# Checks the /health endpoint every 30s after 60s startup grace period
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8008/health', timeout=5)" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8011/health', timeout=5)"
 
-CMD ["python", "src/main.py"]
+# Start the face detection HTTP server
+CMD ["python", "src/face_detection_server.py"]
