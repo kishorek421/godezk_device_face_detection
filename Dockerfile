@@ -9,6 +9,7 @@ WORKDIR /app
 # - libgomp1: OpenMP support for parallel processing
 # - libgl1: OpenGL support for visualization
 RUN apt-get update && apt-get install -y \
+    build-essential \
     git \
     libglib2.0-0 \
     libsm6 \
