@@ -51,15 +51,20 @@ GENDERAGE_MODEL_PATH = os.environ.get(
     str(BASE_DIR / "models" / "genderage.onnx"),
 )
 TRACK_ACTIVATION_THRESHOLD = float(os.environ.get("TRACK_ACTIVATION_THRESHOLD", "0.35"))
-LOST_TRACK_BUFFER = int(os.environ.get("LOST_TRACK_BUFFER", "30"))
-TRACK_MATCHING_THRESHOLD = float(os.environ.get("TRACK_MATCHING_THRESHOLD", "0.80"))
-GENDER_CONFIDENCE_THRESHOLD = float(os.environ.get("GENDER_CONFIDENCE_THRESHOLD", "0.80"))
+# The workflow receives sparse RTSP snapshots rather than every camera frame.
+# Retain a track and its gender result long enough to bridge normal gaps between
+# snapshots, while keeping matching moderately conservative in a busy entrance.
+LOST_TRACK_BUFFER = int(os.environ.get("LOST_TRACK_BUFFER", "60"))
+TRACK_MATCHING_THRESHOLD = float(os.environ.get("TRACK_MATCHING_THRESHOLD", "0.70"))
+# Temple-counting mode: emit the first reasonably confident classification.  The
+# per-track `emitted` flag still ensures only one result is returned per track.
+GENDER_CONFIDENCE_THRESHOLD = float(os.environ.get("GENDER_CONFIDENCE_THRESHOLD", "0.65"))
 GENDER_REFRESH_SECONDS = float(os.environ.get("GENDER_REFRESH_SECONDS", "0.30"))
 GENDER_HISTORY_SIZE = int(os.environ.get("GENDER_HISTORY_SIZE", "7"))
-GENDER_LOCK_THRESHOLD = float(os.environ.get("GENDER_LOCK_THRESHOLD", "0.75"))
-GENDER_LOCK_MIN_HISTORY = int(os.environ.get("GENDER_LOCK_MIN_HISTORY", "3"))
-TRACK_STATE_TTL_SECONDS = float(os.environ.get("TRACK_STATE_TTL_SECONDS", "5.0"))
-MIN_FACE_SIZE = int(os.environ.get("MIN_FACE_SIZE", "50"))
+GENDER_LOCK_THRESHOLD = float(os.environ.get("GENDER_LOCK_THRESHOLD", "0.60"))
+GENDER_LOCK_MIN_HISTORY = int(os.environ.get("GENDER_LOCK_MIN_HISTORY", "1"))
+TRACK_STATE_TTL_SECONDS = float(os.environ.get("TRACK_STATE_TTL_SECONDS", "30.0"))
+MIN_FACE_SIZE = int(os.environ.get("MIN_FACE_SIZE", "40"))
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
