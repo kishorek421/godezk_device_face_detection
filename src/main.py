@@ -44,7 +44,7 @@ MODEL_PATH = os.environ.get(
 CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.70"))
 DET_SIZE = int(os.environ.get("DET_SIZE", "640"))
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
-PORT = int(os.environ.get("PORT", "8008"))
+PORT = int(os.environ.get("PORT", "8002"))
 
 GENDERAGE_MODEL_PATH = os.environ.get(
     "GENDERAGE_MODEL_PATH",

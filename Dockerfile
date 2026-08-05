@@ -32,15 +32,15 @@ RUN pip install --no-cache-dir git+https://github.com/ultralytics/CLIP.git
 COPY src/ ./src/
 COPY models/ ./models/
 
-# Expose port 8011 for the FastAPI inference server
-ENV PORT=8011
+# Expose port 8002 for the FastAPI inference server
+ENV PORT=8002
 ENV LOG_LEVEL=INFO
-EXPOSE 8011
+EXPOSE 8002
 
 # Health check to ensure the service is responsive
 # Checks the /health endpoint every 30s after 60s startup grace period
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8011/health', timeout=5)"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=5)"
 
 # Ensure Python output is sent to container logs without buffering
 ENV PYTHONUNBUFFERED=1

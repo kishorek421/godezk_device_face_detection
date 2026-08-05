@@ -35,7 +35,7 @@ Copy `.env.example` to `.env` and adjust values.
 | `MODEL_PATH` | `models/det_10g.onnx` | Path to RetinaFace ONNX model |
 | `CONFIDENCE_THRESHOLD` | `0.70` | Minimum face confidence |
 | `DET_SIZE` | `640` | Detection input size |
-| `PORT` | `8008` | HTTP server port |
+| `PORT` | `8002` | HTTP server port |
 
 ## Run locally
 
@@ -50,13 +50,13 @@ python src/main.py
 
 ```bash
 docker build -t face-detection .
-docker run -p 8008:8008 face-detection
+docker run -p 8002:8002 face-detection
 ```
 
 ## Example request
 
 ```bash
-curl -X POST http://localhost:8008/detect \\
+curl -X POST http://localhost:8002/detect \\
   -H "Content-Type: application/json" \\
   -d '{"frame_base64": "<base64-image>", "camera_id": "cam-01", "frame_id": "frame-001"}'
 ```
