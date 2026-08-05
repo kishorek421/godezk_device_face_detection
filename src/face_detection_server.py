@@ -14,9 +14,9 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
 
     def log_message(self, format, *args):
-        pass
+        super().log_message(format, *args)
 
 if __name__ == "__main__":
     with socketserver.TCPServer(("", PORT), RequestHandler) as httpd:
-        print(f"Serving on port {PORT}")
+        print(f"Serving on port {PORT}", flush=True)
         httpd.serve_forever()

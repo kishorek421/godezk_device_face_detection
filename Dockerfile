@@ -39,5 +39,8 @@ EXPOSE 8011
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8011/health', timeout=5)"
 
+# Ensure Python output is sent to container logs without buffering
+ENV PYTHONUNBUFFERED=1
+
 # Start the face detection HTTP server
 CMD ["python", "src/face_detection_server.py"]
