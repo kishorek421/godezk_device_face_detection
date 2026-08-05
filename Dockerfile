@@ -28,10 +28,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # YOLO-World uses CLIP for text-image embeddings to detect custom classes
 RUN pip install --no-cache-dir git+https://github.com/ultralytics/CLIP.git
 
-# Copy source code into container
+# Copy source code and models into container
 COPY src/ ./src/
+COPY models/ ./models/
 
 # Expose port 8011 for the FastAPI inference server
+ENV PORT=8011
+ENV LOG_LEVEL=INFO
 EXPOSE 8011
 
 # Health check to ensure the service is responsive
@@ -42,5 +45,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Ensure Python output is sent to container logs without buffering
 ENV PYTHONUNBUFFERED=1
 
-# Start the face detection HTTP server
-CMD ["python", "src/face_detection_server.py"]
+# Start the face detection FastAPI server
+CMD ["python", "src/main.py"]
