@@ -8,3 +8,4 @@ numpy==1.26.4
 opencv-python==4.11.0.86
 pillow==10.1.0
 supervision==0.25.1
+ultralytics>=8.0.0
