@@ -1,9 +1,11 @@
 """
-GoDezk Person Detection Service (formerly face_detection)
+GoDezk Person & Face Detection Service
 Fast CPU/GPU-ready YOLOv8 Person Detector for Cash Counters & Station Guards.
 Accepts raw JPEG/PNG or JSON {image / frame_base64, camera_id?, frame_id?}
+Outputs both 'detections' and 'results'/'faces' for full compatibility with PerceptionGate.
 """
 import base64
+import json
 import logging
 import os
 import time
@@ -14,14 +16,16 @@ import cv2
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from ultralytics import YOLO
 
-# ── Config ────────────────────────────────────────────────────
+# ── Config ─────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = os.environ.get("MODEL_PATH", str(BASE_DIR / "models" / "yolov8n.pt"))
-CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.35"))
+CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.25"))
 PORT = int(os.environ.get("PORT", "8002"))
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 
@@ -31,8 +35,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("person_detection")
 
-# ── App & Model ───────────────────────────────────────────────
-app = FastAPI(title="GoDezk Person Detection Service", version="2.0.0")
+# ── App & Model ────────────────────────────────────────────────────
+app = FastAPI(title="GoDezk Person & Face Detection Service", version="2.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,6 +44,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    safe_errors = []
+    for err in exc.errors():
+        err_copy = dict(err)
+        if isinstance(err_copy.get("input"), (bytes, bytearray)):
+            err_copy["input"] = f"<binary data: {len(err_copy['input'])} bytes>"
+        safe_errors.append(err_copy)
+    return JSONResponse(status_code=422, content={"detail": safe_errors})
+
 
 _model: Optional[YOLO] = None
 
@@ -56,7 +72,7 @@ async def startup_event():
         raise e
 
 
-# ── Schemas ───────────────────────────────────────────────────
+# ── Schemas ────────────────────────────────────────────────────────
 class DetectionItem(BaseModel):
     class_name: str
     confidence: float
@@ -71,6 +87,8 @@ class DetectResponse(BaseModel):
     person_count: int
     persons_detected: int
     detections: List[Dict[str, Any]]
+    results: Optional[List[Dict[str, Any]]] = None
+    faces: Optional[List[Dict[str, Any]]] = None
     processing_time_ms: float
 
 
@@ -83,33 +101,13 @@ class DetectRequest(BaseModel):
     confidence_threshold: Optional[float] = None
 
 
-# ── Helpers ───────────────────────────────────────────────────
-def _decode_frame(req_data: DetectRequest) -> np.ndarray:
-    raw_b64 = req_data.image or req_data.frame_base64 or req_data.data
-    if not raw_b64:
-        raise HTTPException(status_code=400, detail="Missing image base64 data")
-
-    if "," in raw_b64:
-        raw_b64 = raw_b64.split(",", 1)[1]
-
-    try:
-        img_bytes = base64.b64decode(raw_b64)
-        np_arr = np.frombuffer(img_bytes, np.uint8)
-        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        if frame is None:
-            raise ValueError("cv2.imdecode returned None")
-        return frame
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid image encoding: {e}")
-
-
+# ── Helpers ────────────────────────────────────────────────────────
 def _run_person_inference(frame: np.ndarray, conf_threshold: float) -> List[Dict[str, Any]]:
     global _model
     if _model is None:
         raise HTTPException(status_code=503, detail="YOLO model not loaded")
 
     h, w = frame.shape[:2]
-    # Run YOLO with verbose=False for fast execution
     results = _model(frame, conf=conf_threshold, verbose=False)
     detections = []
 
@@ -153,7 +151,7 @@ def _run_person_inference(frame: np.ndarray, conf_threshold: float) -> List[Dict
     return detections
 
 
-# ── Routes ────────────────────────────────────────────────────
+# ── Routes ─────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
     return {
@@ -166,30 +164,80 @@ def health():
 
 @app.post("/detect", response_model=DetectResponse)
 @app.post("/predict", response_model=DetectResponse)
-def detect(req: DetectRequest):
+@app.post("/recognize", response_model=DetectResponse)
+async def detect(request: Request):
     start = time.time()
-    frame = _decode_frame(req)
-    conf = req.confidence_threshold or CONFIDENCE_THRESHOLD
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty request body")
+
+    frame = None
+    frame_id = request.headers.get("x-frame-id") or request.query_params.get("frame_id")
+    camera_id = request.headers.get("x-camera-id") or request.query_params.get("camera_id")
+    conf = CONFIDENCE_THRESHOLD
+
+    # 1. Raw binary image (JPEG starts with 0xFF 0xD8, PNG starts with 0x89 PNG)
+    if body.startswith(bytes([0xFF, 0xD8])) or body.startswith(bytes([0x89, 0x50, 0x4E, 0x47])) or request.headers.get("content-type", "").startswith("image/"):
+        np_arr = np.frombuffer(body, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    else:
+        # 2. Try JSON payload
+        try:
+            data = json.loads(body.decode("utf-8", errors="replace"))
+            raw_b64 = data.get("image") or data.get("frame_base64") or data.get("data")
+            camera_id = data.get("camera_id", camera_id)
+            frame_id = data.get("frame_id", frame_id)
+            if data.get("confidence_threshold"):
+                conf = float(data["confidence_threshold"])
+            if raw_b64:
+                if "," in raw_b64:
+                    raw_b64 = raw_b64.split(",", 1)[1]
+                img_bytes = base64.b64decode(raw_b64)
+                np_arr = np.frombuffer(img_bytes, np.uint8)
+                frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        except Exception:
+            # Fallback: maybe raw image bytes without content-type header
+            np_arr = np.frombuffer(body, np.uint8)
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+    if frame is None:
+        raise HTTPException(status_code=400, detail="Could not decode image from request body")
 
     detections = _run_person_inference(frame, conf)
     duration_ms = round((time.time() - start) * 1000, 2)
 
+    # Format into face/person items compatible with PerceptionGate _decideFace
+    results = [
+        {
+            "matched": False,
+            "person_id": f"person_{i+1}",
+            "track_id": str(i+1),
+            "unknown_track_id": f"UNK-{i+1}",
+            "name": d.get("label", "person"),
+            "confidence": d.get("confidence", 0.0),
+            "det_score": d.get("confidence", 0.0),
+            "similarity": d.get("confidence", 0.0),
+            "bbox": d.get("bbox"),
+            "normalized_bbox": d.get("normalized_bbox"),
+        }
+        for i, d in enumerate(detections)
+    ]
+
     return DetectResponse(
         success=True,
-        frame_id=req.frame_id,
-        camera_id=req.camera_id,
+        frame_id=frame_id,
+        camera_id=camera_id,
         person_count=len(detections),
         persons_detected=len(detections),
         detections=detections,
+        results=results,
+        faces=results,
         processing_time_ms=duration_ms,
     )
 
 
-# Compatibility endpoint for legacy callers expecting /recognize
-@app.post("/recognize")
-def recognize_compat(req: DetectRequest):
-    return detect(req)
-
-
 if __name__ == "__main__":
-    uvicorn.run("src.main:app", host="0.0.0.0", port=PORT, log_level="info")
+    import sys
+    if str(BASE_DIR) not in sys.path:
+        sys.path.insert(0, str(BASE_DIR))
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
