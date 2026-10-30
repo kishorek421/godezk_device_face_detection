@@ -28,14 +28,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MODELS_DIR = BASE_DIR / "models"
 
 YOLO_MODEL_PATH = os.environ.get("MODEL_PATH", str(MODELS_DIR / "yolov8n.pt"))
+MODEL_PATH = YOLO_MODEL_PATH
 YUNET_MODEL_PATH = os.environ.get("YUNET_MODEL_PATH", str(MODELS_DIR / "face_detection_yunet_2023mar.onnx"))
 FER_MODEL_PATH = os.environ.get("FER_MODEL_PATH", str(MODELS_DIR / "affecnet7.script"))
 
-CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.25"))
+CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.45"))
 FACE_CONFIDENCE_THRESHOLD = float(os.environ.get("FACE_CONFIDENCE_THRESHOLD", "0.60"))
 ANGER_THRESHOLD = float(os.environ.get("ANGER_THRESHOLD", "0.45"))
 ENABLE_FER_DEFAULT = os.environ.get("ENABLE_FER", "true").lower() in ("true", "1", "yes")
-
 PORT = int(os.environ.get("PORT", "8002"))
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 
