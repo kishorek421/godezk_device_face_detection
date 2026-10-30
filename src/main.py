@@ -25,7 +25,7 @@ from ultralytics import YOLO
 # ── Config ─────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = os.environ.get("MODEL_PATH", str(BASE_DIR / "models" / "yolov8n.pt"))
-CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.25"))
+CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.45"))
 PORT = int(os.environ.get("PORT", "8002"))
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 
